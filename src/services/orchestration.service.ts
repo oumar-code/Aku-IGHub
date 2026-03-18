@@ -39,6 +39,24 @@ export const OrchestrationService = {
     const workflow = workflows.get(workflowId);
     if (!workflow) throw new Error(`Workflow ${workflowId} not found`);
 
+    // Detect circular dependencies before execution
+    const stepIds = new Set(workflow.steps.map((s) => s.id));
+    const detectCycle = (stepId: string, visiting: Set<string>): boolean => {
+      if (visiting.has(stepId)) return true;
+      visiting.add(stepId);
+      const step = workflow.steps.find((s) => s.id === stepId);
+      for (const dep of step?.dependsOn ?? []) {
+        if (stepIds.has(dep) && detectCycle(dep, visiting)) return true;
+      }
+      visiting.delete(stepId);
+      return false;
+    };
+    for (const step of workflow.steps) {
+      if (detectCycle(step.id, new Set())) {
+        throw new Error(`Circular dependency detected in workflow ${workflowId}`);
+      }
+    }
+
     const now = new Date().toISOString();
     const stepResults: Record<string, StepResult> = {};
     for (const step of workflow.steps) {
@@ -85,11 +103,16 @@ export const OrchestrationService = {
           headers['Authorization'] = `Bearer ${integration.authValue}`;
         }
 
-        const response = await axios({ method: step.method, url, headers, data: step.body });
-        execution.steps[stepId].data = response.data;
-        execution.steps[stepId].status = 'completed';
-        execution.steps[stepId].completedAt = new Date().toISOString();
-        completed.add(stepId);
+        try {
+          const response = await axios({ method: step.method, url, headers, data: step.body });
+          execution.steps[stepId].data = response.data;
+          execution.steps[stepId].status = 'completed';
+          execution.steps[stepId].completedAt = new Date().toISOString();
+          completed.add(stepId);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          throw new Error(`Step "${step.name}" (${stepId}) failed: ${message}`);
+        }
       };
 
       for (const step of workflow.steps) {

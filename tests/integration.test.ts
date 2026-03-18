@@ -36,13 +36,18 @@ describe('Integration API', () => {
     expect(res.body.data.id).toBe(integrationId);
   });
 
-  it('PUT /api/v1/integrations/:id should update integration', async () => {
+  it('PUT /api/v1/integrations/:id should update integration and change updatedAt', async () => {
+    const before = await request(app)
+      .get(`/api/v1/integrations/${integrationId}`)
+      .set('x-api-key', API_KEY);
     const res = await request(app)
       .put(`/api/v1/integrations/${integrationId}`)
       .set('x-api-key', API_KEY)
       .send({ name: 'Updated Service' });
     expect(res.status).toBe(200);
     expect(res.body.data.name).toBe('Updated Service');
+    expect(res.body.data.createdAt).toBe(before.body.data.createdAt);
+    expect(res.body.data.updatedAt).not.toBe(before.body.data.updatedAt);
   });
 
   it('DELETE /api/v1/integrations/:id should delete integration', async () => {

@@ -61,6 +61,23 @@ describe('Orchestration API', () => {
     expect(res.status).toBe(200);
   });
 
+  it('POST /api/v1/orchestration/workflows/:id/execute should return 400 for unknown workflow', async () => {
+    const res = await request(app)
+      .post('/api/v1/orchestration/workflows/nonexistent/execute')
+      .set('x-api-key', API_KEY)
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('GET /api/v1/orchestration/executions/:id should return 404 for unknown execution', async () => {
+    const res = await request(app)
+      .get('/api/v1/orchestration/executions/nonexistent')
+      .set('x-api-key', API_KEY);
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+  });
+
   it('GET /api/v1/orchestration/workflows/:id should return 404 for missing workflow', async () => {
     const res = await request(app)
       .get('/api/v1/orchestration/workflows/nonexistent')

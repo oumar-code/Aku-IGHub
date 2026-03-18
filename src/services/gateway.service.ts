@@ -46,7 +46,12 @@ export const GatewayService = {
     if (route.stripPrefix) {
       targetPath = targetPath.replace(route.matchPath, '') || '/';
     }
-    const targetUrl = `${route.targetUrl}${targetPath}${req.url.includes('?') ? '?' + req.url.split('?')[1] : ''}`;
+    const base = new URL(route.targetUrl);
+    base.pathname = (base.pathname.replace(/\/$/, '') + targetPath) || '/';
+    if (req.url.includes('?')) {
+      base.search = '?' + req.url.split('?')[1];
+    }
+    const targetUrl = base.toString();
 
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(req.headers)) {
@@ -63,6 +68,7 @@ export const GatewayService = {
       url: targetUrl,
       headers,
       data: req.body,
+      // Accept all status codes so error responses are proxied back to the client
       validateStatus: () => true,
     };
 
