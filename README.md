@@ -37,3 +37,5 @@ See `.github/workflows/ci.yml` for CI/CD pipeline.
 
 ## License
 MIT
+# Aku-IGHub
+## Features - REST API for integration and orchestration - Scalable Node.js backend
