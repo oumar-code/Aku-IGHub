@@ -36,7 +36,7 @@ export const GatewayService = {
       const methodMatch =
         !r.methods ||
         r.methods.includes('ALL') ||
-        r.methods.includes(method.toUpperCase() as GatewayRoute['methods'] extends Array<infer M> ? M : never);
+        r.methods.includes(method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'ALL');
       return pathMatch && methodMatch;
     });
   },

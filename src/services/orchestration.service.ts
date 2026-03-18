@@ -35,7 +35,8 @@ export const OrchestrationService = {
     return executions.get(id);
   },
 
-  async executeWorkflow(workflowId: string, _input?: Record<string, unknown>): Promise<WorkflowExecution> {
+  async executeWorkflow(workflowId: string, input?: Record<string, unknown>): Promise<WorkflowExecution> {
+    void input; // Reserved for future use: passing runtime input data to workflow steps
     const workflow = workflows.get(workflowId);
     if (!workflow) throw new Error(`Workflow ${workflowId} not found`);
 
