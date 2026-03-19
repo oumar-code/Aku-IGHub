@@ -1,11 +1,14 @@
 const express = require('express');
+
 const app = express();
-const port = process.env.PORT || 8080;
 
-app.get('/', (req, res) => {
-  res.send('IG Hub service is running!');
-});
+// Your routes and middlewares here
 
-app.listen(port, () => {
-  console.log(`IG Hub service listening on port ${port}`);
-});
+if (require.main === module) {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+}
+
+module.exports = app;
