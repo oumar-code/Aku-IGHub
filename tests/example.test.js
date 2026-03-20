@@ -1,8 +1,5 @@
 const request = require('supertest');
-const express = require('express');
-
-const app = express();
-app.get('/', (req, res) => res.send('IG Hub service is running!'));
+const app = require('../src/index');
 
 describe('GET /', () => {
   it('should return service running message', async () => {
