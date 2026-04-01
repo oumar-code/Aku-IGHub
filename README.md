@@ -1,228 +1,141 @@
-# IG Hub
+# Aku-IGHub — Global API Gateway
 
-## Overview
-IG Hub is a microservice in the Aku platform ecosystem. It provides integration, orchestration, and gateway services for connecting internal and external systems.
+Aku-IGHub is the system-wide API gateway for the Akulearn platform. It owns three critical domains:
 
-## Features
-- REST API for integration and orchestration
-- Scalable Node.js backend
+| Domain | Responsibility |
+|---|---|
+| **Verifiable Credentials** | Issue and verify W3C VCs (learning achievements, skill badges, certificates) |
+| **Aku Coin Clearing** | Idempotent financial settlement between platform wallets |
+| **Anonymised Metadata** | PII-free event exchange forwarded to Aku-DaaS for analytics |
+| **Compliance** | Cross-border regulatory policy checks (GDPR, NDPR, FERPA, PDPA, …) |
 
-## Getting Started
+All endpoints are protected by JWT authentication — IGHub is the **auth boundary** for the entire Aku service mesh.
 
-### Prerequisites
-- Node.js 20+
-- Docker (optional)
+---
 
-### Development
-```bash
-git clone <repo-url>
-cd IGHub
-npm install
-npm run dev
-```
+## Endpoints
 
-### Docker
-```bash
-docker build -t ig-hub:latest .
-docker run -p 8080:8080 ig-hub:latest
-```
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/v1/credentials/issue` | Issue a signed verifiable credential |
+| `GET` | `/api/v1/credentials/{id}/verify` | Verify credential signature, expiry, revocation |
+| `POST` | `/api/v1/clearing/settle` | Settle an Aku Coin transaction (**idempotent**) |
+| `GET` | `/api/v1/clearing/{tx_id}` | Get clearing transaction status |
+| `POST` | `/api/v1/metadata/publish` | Publish anonymised metadata → Aku-DaaS |
+| `GET` | `/api/v1/metadata/{id}` | Retrieve a published metadata record |
+| `POST` | `/api/v1/compliance/check` | Cross-border regulatory compliance check |
 
-### Testing
-```bash
-npm test
-```
+---
 
-## Deployment
-See `.github/workflows/ci.yml` for CI/CD pipeline.
-
-## License
-MIT
-# Aku-IGHub
-
-**Aku IG Hub** is a microservice in the Aku platform ecosystem. It provides integration, orchestration, and gateway services for connecting internal and external systems.
-
-## Features
-
-- **Integration Management** – Register and manage connectors to external HTTP, webhook, and gRPC services
-- **Orchestration** – Define and execute multi-step workflows across integrated services with dependency resolution
-- **API Gateway** – Route and proxy HTTP requests to downstream internal or external services
-- **Authentication** – API key-based access control
-- **REST API** – Full CRUD operations on all resources
-- **Scalable Node.js backend** – Built with TypeScript and Express
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20+
-- npm 9+
-
-### Installation
+## Quick Start
 
 ```bash
-npm install
-```
-
-### Configuration
-
-Copy `.env.example` to `.env` and update values:
-
-```bash
+# 1. Copy environment config
 cp .env.example .env
+# Edit .env — set JWT_PUBLIC_KEY_PATH, DAAS_INGEST_URL, REDIS_URL
+
+# 2. Install dependencies
+pip install -r requirements.txt -r requirements-extra.txt
+
+# 3. Run (development)
+uvicorn app.main:app --reload --port 8000
 ```
 
-| Variable    | Default         | Description                  |
-|-------------|-----------------|------------------------------|
-| `PORT`      | `3000`          | HTTP server port             |
-| `NODE_ENV`  | `development`   | Environment name             |
-| `API_KEY`   | `dev-api-key`   | API key for authentication   |
-| `LOG_LEVEL` | `info`          | Log level                    |
+Interactive docs: http://localhost:8000/docs
 
-### Running
+---
 
-```bash
-# Development (hot reload)
-npm run dev
+## Project Layout
 
-# Production
-npm run build
-npm start
+```
+Aku-IGHub/
+├── app/
+│   ├── main.py                  # FastAPI app factory & router registration
+│   ├── dependencies.py          # get_current_user JWT dependency
+│   ├── core/
+│   │   └── config.py            # Pydantic-settings config (reads .env)
+│   ├── routers/
+│   │   ├── credentials.py       # VC issue / verify
+│   │   ├── clearing.py          # Aku Coin settlement (idempotent)
+│   │   ├── metadata.py          # Anonymised metadata → DaaS
+│   │   └── compliance.py        # Cross-border policy check
+│   └── schemas/
+│       ├── credentials.py       # CredentialIssueRequest/Response, CredentialVerifyResponse
+│       ├── clearing.py          # ClearingStatus, ClearingSettleRequest/Response
+│       └── metadata.py          # MetadataPublishRequest/Response, MetadataRecord
+├── requirements-extra.txt       # IGHub-specific extra deps (JWT, Redis, httpx, …)
+└── .env.example                 # Environment variable template
 ```
 
-### Docker
+---
 
-```bash
-docker-compose up --build
-```
+## Idempotency (Clearing)
 
-## API Reference
+`POST /api/v1/clearing/settle` **requires** an `Idempotency-Key` header:
 
-All API endpoints are prefixed with `/api/v1`. Protected endpoints require the `x-api-key` header.
+```http
+POST /api/v1/clearing/settle
+Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
+Authorization: Bearer <jwt>
+Content-Type: application/json
 
-### Health
-
-| Method | Path              | Description   |
-|--------|-------------------|---------------|
-| GET    | `/api/v1/health`  | Health check  |
-
-### Integrations
-
-| Method | Path                        | Description               |
-|--------|-----------------------------|---------------------------|
-| GET    | `/api/v1/integrations`      | List all integrations     |
-| POST   | `/api/v1/integrations`      | Create an integration     |
-| GET    | `/api/v1/integrations/:id`  | Get an integration        |
-| PUT    | `/api/v1/integrations/:id`  | Update an integration     |
-| DELETE | `/api/v1/integrations/:id`  | Delete an integration     |
-
-#### Create Integration Body
-
-```json
 {
-  "name": "Payment Service",
-  "type": "http",
-  "baseUrl": "https://payments.example.com",
-  "authType": "bearer",
-  "authValue": "token123"
+  "from_wallet": "did:web:wallet.alice.example",
+  "to_wallet":   "did:web:wallet.bob.example",
+  "amount":      "10.00",
+  "currency":    "AKU"
 }
 ```
 
-### Orchestration
+- **HTTP 201** — new transaction accepted and settled.
+- **HTTP 200** — duplicate key detected; original response replayed (no double-debit).
 
-| Method | Path                                          | Description             |
-|--------|-----------------------------------------------|-------------------------|
-| GET    | `/api/v1/orchestration/workflows`             | List workflows          |
-| POST   | `/api/v1/orchestration/workflows`             | Create a workflow       |
-| GET    | `/api/v1/orchestration/workflows/:id`         | Get a workflow          |
-| DELETE | `/api/v1/orchestration/workflows/:id`         | Delete a workflow       |
-| POST   | `/api/v1/orchestration/workflows/:id/execute` | Execute a workflow      |
-| GET    | `/api/v1/orchestration/executions/:id`        | Get execution status    |
+In production, back the idempotency store with Redis (`REDIS_URL`) and set `IDEMPOTENCY_TTL_SECONDS` (default 24 h).
 
-#### Create Workflow Body
+---
+
+## JWT Authentication
+
+IGHub validates bearer tokens at the gateway boundary so downstream services can trust the forwarded identity. Configure:
+
+```
+JWT_ALGORITHM=RS256
+JWT_PUBLIC_KEY_PATH=/secrets/jwt_public.pem
+```
+
+The `get_current_user` dependency (in `app/dependencies.py`) is injected into every router. It decodes the token, verifies the signature, and exposes the claims dict to route handlers.
+
+---
+
+## Metadata & PII Policy
+
+`POST /api/v1/metadata/publish` enforces a schema-level PII guard. Payloads containing keys named `name`, `email`, `phone`, `dob`, `ssn`, `passport`, or `address` are rejected with HTTP 422. Strip all PII before publishing.
+
+Published records are forwarded to Aku-DaaS at `DAAS_INGEST_URL`. If DaaS is unreachable, the record is still persisted locally and `daas_ingested: false` is returned.
+
+---
+
+## Compliance Check
+
+`POST /api/v1/compliance/check` evaluates a cross-border data operation against auto-detected regulatory frameworks:
 
 ```json
 {
-  "name": "Order Processing",
-  "description": "Process an order across multiple services",
-  "steps": [
-    {
-      "id": "check-inventory",
-      "name": "Check Inventory",
-      "integrationId": "<integration-id>",
-      "method": "GET",
-      "path": "/inventory/check"
-    },
-    {
-      "id": "charge-payment",
-      "name": "Charge Payment",
-      "integrationId": "<integration-id>",
-      "method": "POST",
-      "path": "/payments/charge",
-      "dependsOn": ["check-inventory"]
-    }
-  ]
+  "operation": "credential.share",
+  "source_jurisdiction": "NG",
+  "target_jurisdiction": "DE",
+  "context": { "data_category": "education_records" }
 }
 ```
 
-### Gateway
+Frameworks are inferred from jurisdictions (GDPR for EU, NDPR for Nigeria, FERPA/COPPA for US, etc.) or supplied explicitly via `applicable_policies`. A production integration should replace the stub logic with an OPA or Cedar policy sidecar.
 
-| Method | Path                         | Description              |
-|--------|------------------------------|--------------------------|
-| GET    | `/api/v1/gateway/routes`     | List gateway routes      |
-| POST   | `/api/v1/gateway/routes`     | Create a gateway route   |
-| GET    | `/api/v1/gateway/routes/:id` | Get a gateway route      |
-| DELETE | `/api/v1/gateway/routes/:id` | Delete a gateway route   |
-| ALL    | `/api/v1/gateway/proxy/*`    | Proxy a request          |
+---
 
-#### Create Gateway Route Body
+## Migration Notes (Node.js → Python/FastAPI)
 
-```json
-{
-  "name": "Users Service",
-  "matchPath": "/users",
-  "targetUrl": "https://users.internal.example.com",
-  "stripPrefix": true,
-  "methods": ["GET", "POST"]
-}
-```
+The existing Node.js stub exposed generic gateway routes. All such routes **must be removed** and replaced with the domain routes above. Key differences:
 
-## Development
-
-### Running Tests
-
-```bash
-npm test
-```
-
-### Linting
-
-```bash
-npm run lint
-npm run lint:fix
-```
-
-### Building
-
-```bash
-npm run build
-```
-
-## Architecture
-
-```
-src/
-├── app.ts                    # Express application factory
-├── index.ts                  # Server entry point
-├── config/
-│   └── index.ts              # Configuration
-├── controllers/              # Request handlers
-├── services/                 # Business logic
-├── routes/                   # Route definitions
-├── middleware/               # Express middleware
-└── types/
-    └── index.ts              # TypeScript types
-```
-
-## License
-
-MIT
+- Auth moves from Express middleware to FastAPI's `Depends(get_current_user)` — injected per-router, not globally, so each domain's auth requirement is explicit and auditable.
+- Idempotency is enforced at the FastAPI layer using `Header()` — not Express body parsing.
+- Pydantic v2 validates and documents every request/response shape automatically.
