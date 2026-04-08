@@ -29,8 +29,12 @@ class MetadataPublishRequest(BaseModel):
         ...,
         description="Anonymised payload — must not contain PII (name, email, DOB, etc.)",
     )
-    tags: list[str] = Field(default_factory=list, description="Searchable tags for downstream DaaS indexing")
-    source_service: str = Field(..., description="Originating Aku service identifier, e.g. 'Akudemy'")
+    tags: list[str] = Field(
+        default_factory=list, description="Searchable tags for downstream DaaS indexing"
+    )
+    source_service: str = Field(
+        ..., description="Originating Aku service identifier, e.g. 'Akudemy'"
+    )
     schema_version: str = Field("1.0", description="Payload schema version for DaaS compatibility")
 
     @model_validator(mode="after")
