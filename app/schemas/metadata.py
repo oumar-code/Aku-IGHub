@@ -38,7 +38,7 @@ class MetadataPublishRequest(BaseModel):
     schema_version: str = Field("1.0", description="Payload schema version for DaaS compatibility")
 
     @model_validator(mode="after")
-    def _reject_pii_keys(self) -> "MetadataPublishRequest":
+    def _reject_pii_keys(self) -> MetadataPublishRequest:
         """Best-effort guard: reject payloads with obvious PII field names."""
         pii_keys = {"name", "email", "phone", "dob", "date_of_birth", "ssn", "passport", "address"}
         found = pii_keys & {k.lower() for k in self.payload}
